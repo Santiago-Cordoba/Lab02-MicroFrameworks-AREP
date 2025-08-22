@@ -9,17 +9,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 
 /**
- * Clase de un servidor http para manejar peticiones, en este caso para un pagina de canciones
+ * Enhanced HTTP Server with Web Framework capabilities
  */
 public class HttpServer {
     private static final Map<String, String> CONTENT_TYPES = new HashMap<>();
     private static final List<Song> songs = new ArrayList<>();
     private static boolean running = true;
 
-    static {
+    // New framework components
+    private static Map<String, BiFunction<Request, Response, String>> getRoutes = new ConcurrentHashMap<>();
+    private static String staticFilesBase = "src/main/resources";
+    private static String contextPath = "/App";
 
+    static {
         CONTENT_TYPES.put("html", "text/html");
         CONTENT_TYPES.put("js", "text/javascript");
         CONTENT_TYPES.put("css", "text/css");
@@ -34,7 +40,25 @@ public class HttpServer {
         songs.add(new Song("Hotel California", "Eagles"));
     }
 
+    // Framework API methods
+    public static void staticfiles(String path) {
+        staticFilesBase = path;
+    }
+
+    public static void get(String route, BiFunction<Request, Response, String> handler) {
+        getRoutes.put(route, handler);
+    }
+
+    public static void setContextPath(String path) {
+        contextPath = path;
+    }
+
     public static void main(String[] args) throws IOException {
+        // Example usage of the new framework API
+        staticfiles("src/main/resources");
+        get("/hello", (req, resp) -> "Hello " + req.getQueryParam("name"));
+        get("/pi", (req, resp) -> String.valueOf(Math.PI));
+
         ServerSocket serverSocket = startServer(35000);
         while (running) {
             handleClientConnection(serverSocket);
@@ -45,6 +69,8 @@ public class HttpServer {
     private static ServerSocket startServer(int port) throws IOException {
         ServerSocket serverSocket = new ServerSocket(port);
         System.out.println("Servidor de música iniciado en http://localhost:" + port);
+        System.out.println("Context path: " + contextPath);
+        System.out.println("Static files base: " + staticFilesBase);
         return serverSocket;
     }
 
@@ -66,24 +92,90 @@ public class HttpServer {
         String inputLine;
         String method = "";
         String path = "";
+        Map<String, String> headers = new HashMap<>();
+        Map<String, String> queryParams = new HashMap<>();
 
+        boolean isFirstLine = true;
         while ((inputLine = in.readLine()) != null) {
-            if (inputLine.startsWith("GET") || inputLine.startsWith("POST")) {
-                String[] requestParts = inputLine.split(" ");
-                method = requestParts[0];
-                path = requestParts[1];
+            if (isFirstLine) {
+                // Parsear la línea de solicitud (GET /path?query=value HTTP/1.1)
+                if (inputLine.startsWith("GET") || inputLine.startsWith("POST")) {
+                    String[] requestParts = inputLine.split(" ");
+                    method = requestParts[0];
+
+                    // Extract path and query parameters
+                    String fullPath = requestParts[1];
+                    int queryIndex = fullPath.indexOf('?');
+                    if (queryIndex != -1) {
+                        path = fullPath.substring(0, queryIndex);
+                        String queryString = fullPath.substring(queryIndex + 1);
+                        queryParams = Request.parseQueryParams(queryString); // Now this will work
+                    } else {
+                        path = fullPath;
+                    }
+                }
+                isFirstLine = false;
+            } else {
+                // Parsear headers
+                if (inputLine.isEmpty()) break; // Fin de headers
+                int colonIndex = inputLine.indexOf(':');
+                if (colonIndex > 0) {
+                    String headerName = inputLine.substring(0, colonIndex).trim();
+                    String headerValue = inputLine.substring(colonIndex + 1).trim();
+                    headers.put(headerName, headerValue);
+                }
             }
             if (!in.ready()) break;
         }
 
-        return !method.isEmpty() ? new Request(method, path) : null;
+        return !method.isEmpty() ? new Request(method, path, queryParams, headers) : null;
     }
 
+
+
     private static void processRequest(OutputStream outputStream, Request request) throws IOException {
+        // Check if it's a framework route first
+        if (request.getPath().startsWith(contextPath)) {
+            String frameworkPath = request.getPath().substring(contextPath.length());
+            BiFunction<Request, Response, String> handler = getRoutes.get(frameworkPath);
+
+            if (handler != null) {
+                handleFrameworkRequest(outputStream, request, handler);
+                return;
+            }
+        }
+
+        if ("/image".equals(request.getPath())) {
+            serveImage(outputStream, "src/main/resources/images/fondo.jpg");
+            return;
+        }
+
+        // Fall back to original functionality
         if (request.getPath().startsWith("/api/songs")) {
             handleApiRequest(outputStream, request);
         } else {
             serveStaticFile(outputStream, request.getPath());
+        }
+    }
+
+    private static void handleFrameworkRequest(OutputStream outputStream, Request request,
+                                               BiFunction<Request, Response, String> handler) throws IOException {
+        PrintWriter out = new PrintWriter(outputStream, true);
+        Response response = new Response(out, outputStream);
+
+        try {
+            String result = handler.apply(request, response);
+            if (!response.isHeadersSent()) {
+                out.println("HTTP/1.1 200 OK");
+                out.println("Content-Type: text/plain");
+                out.println();
+            }
+            out.println(result);
+        } catch (Exception e) {
+            out.println("HTTP/1.1 500 Internal Server Error");
+            out.println("Content-Type: text/plain");
+            out.println();
+            out.println("Error processing request: " + e.getMessage());
         }
     }
 
@@ -102,7 +194,7 @@ public class HttpServer {
                 sendJsonResponse(out, 200, formatSongsJson());
             }
             else if ("POST".equals(request.getMethod()) && request.getPath().startsWith("/api/songs/add")) {
-                Song newSong = parseNewSong(request.getPath());
+                Song newSong = parseNewSong(request);
                 songs.add(newSong);
                 sendJsonResponse(out, 200, "{\"status\":\"success\", \"message\":\"Canción agregada\"}");
             }
@@ -117,26 +209,12 @@ public class HttpServer {
     /**
      * Extrae los parámetros de título y artista de la URL.
      *
-     * @param path Ruta de la solicitud con parámetros
+     * @param request La solicitud con parámetros
      * @return Nueva instancia de Song
-     * @throws UnsupportedEncodingException Si hay error al decodificar
      */
-    private static Song parseNewSong(String path) throws UnsupportedEncodingException {
-        String query = path.split("\\?")[1];
-        String[] params = query.split("&");
-        String title = "";
-        String artist = "";
-
-        for (String param : params) {
-            String[] keyValue = param.split("=");
-            String decodedValue = URLDecoder.decode(keyValue[1], "UTF-8");
-            if ("title".equals(keyValue[0])) {
-                title = decodedValue;
-            } else if ("artist".equals(keyValue[0])) {
-                artist = decodedValue;
-            }
-        }
-
+    private static Song parseNewSong(Request request) {
+        String title = request.getQueryParam("title");
+        String artist = request.getQueryParam("artist");
         return new Song(title, artist);
     }
 
@@ -167,7 +245,7 @@ public class HttpServer {
     }
 
     /**
-     * Sirve archivos estáticos desde el directorio resources.
+     * Sirve archivos estáticos desde el directorio configurado.
      *
      * @param outputStream Flujo de salida para la respuesta
      * @param requestPath Ruta solicitada por el cliente
@@ -175,7 +253,7 @@ public class HttpServer {
      */
     static void serveStaticFile(OutputStream outputStream, String requestPath) throws IOException {
         String path = requestPath.equals("/") ? "/index.html" : requestPath;
-        Path filePath = Paths.get("src/main/resources" + path);
+        Path filePath = Paths.get(staticFilesBase + path);
 
         try (PrintWriter out = new PrintWriter(outputStream, true)) {
             if (Files.exists(filePath)) {
@@ -199,24 +277,37 @@ public class HttpServer {
         }
     }
 
-    /**
-     * Clase interna para manejar datos de la solicitud
-     */
-    static class Request {
-        private final String method;
-        private final String path;
+    private static void serveImage(OutputStream outputStream, String imagePath) throws IOException {
+        Path filePath = Paths.get(imagePath);
 
-        public Request(String method, String path) {
-            this.method = method;
-            this.path = path;
-        }
+        try (PrintWriter out = new PrintWriter(outputStream, true)) {
+            if (Files.exists(filePath)) {
+                // Obtener la extensión del archivo
+                String fileName = filePath.getFileName().toString();
+                String extension = fileName.substring(fileName.lastIndexOf(".") + 1);
+                String contentType = CONTENT_TYPES.getOrDefault(extension, "application/octet-stream");
 
-        public String getMethod() {
-            return method;
-        }
+                byte[] fileContent = Files.readAllBytes(filePath);
 
-        public String getPath() {
-            return path;
+                out.println("HTTP/1.1 200 OK");
+                out.println("Content-Type: " + contentType);
+                out.println("Content-Length: " + fileContent.length);
+                out.println("Cache-Control: max-age=3600"); // Cache por 1 hora
+                out.println();
+                out.flush();
+
+                outputStream.write(fileContent);
+            } else {
+                out.println("HTTP/1.1 404 Not Found");
+                out.println("Content-Type: text/html");
+                out.println();
+                out.println("<h1>404 Not Found - Image not available</h1>");
+                out.println("<p>La imagen no se encuentra en: " + imagePath + "</p>");
+            }
         }
     }
+
+
+
 }
+
