@@ -12,9 +12,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 
-/**
- * Enhanced HTTP Server with Web Framework capabilities
- */
+
 public class HttpServer {
     private static final Map<String, String> CONTENT_TYPES = new HashMap<>();
     private static final List<Song> songs = new ArrayList<>();
@@ -34,7 +32,7 @@ public class HttpServer {
         CONTENT_TYPES.put("gif", "image/gif");
         CONTENT_TYPES.put("json", "application/json");
 
-        // Canciones de ejemplo
+
         songs.add(new Song("Bohemian Rhapsody", "Queen"));
         songs.add(new Song("Imagine", "John Lennon"));
         songs.add(new Song("Hotel California", "Eagles"));
@@ -98,12 +96,12 @@ public class HttpServer {
         boolean isFirstLine = true;
         while ((inputLine = in.readLine()) != null) {
             if (isFirstLine) {
-                // Parsear la línea de solicitud (GET /path?query=value HTTP/1.1)
+
                 if (inputLine.startsWith("GET") || inputLine.startsWith("POST")) {
                     String[] requestParts = inputLine.split(" ");
                     method = requestParts[0];
 
-                    // Extract path and query parameters
+
                     String fullPath = requestParts[1];
                     int queryIndex = fullPath.indexOf('?');
                     if (queryIndex != -1) {
@@ -282,7 +280,7 @@ public class HttpServer {
 
         try (PrintWriter out = new PrintWriter(outputStream, true)) {
             if (Files.exists(filePath)) {
-                // Obtener la extensión del archivo
+
                 String fileName = filePath.getFileName().toString();
                 String extension = fileName.substring(fileName.lastIndexOf(".") + 1);
                 String contentType = CONTENT_TYPES.getOrDefault(extension, "application/octet-stream");
@@ -292,7 +290,7 @@ public class HttpServer {
                 out.println("HTTP/1.1 200 OK");
                 out.println("Content-Type: " + contentType);
                 out.println("Content-Length: " + fileContent.length);
-                out.println("Cache-Control: max-age=3600"); // Cache por 1 hora
+                out.println("Cache-Control: max-age=3600");
                 out.println();
                 out.flush();
 

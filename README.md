@@ -1,10 +1,10 @@
-# Lab01 diseño y estructuración de aplicaciones distribuidas en internet
+# Lab02 MicroFrameworks
 
-En este laboratorio se desarrollo un servidor Http con el fin de poder realizar multiples solicitudes, para lograrlo 
-se utilizo javascript, css, java y librerias que nos permitan realizar el manejo de la red, mas no se utilizaron frameworks
+En este laboratorio se desarrolló un servidor Http con el fin de poder realizar multiples solicitudes, para lograrlo 
+se utilizó javascript, css, java y librerias que nos permitan realizar el manejo de la red, más no se utilizaron frameworks
 como Spark o Spring.
 
-Se realizo el servidor Http para poder realizar un lista de musica, es decir poder manejar tu propia lista de musica.
+Se realizo el servidor Http para poder realizar una lista de música, es decir poder manejar tu propia lista de música.
 
 ## Screenshots of the project in action
 
@@ -23,6 +23,31 @@ Vemos que se añadio correctamente la canción a la lista de canciones.
 Vemos que la función de buscar canciones funciona de manera correcta.
 
 ![Descripción de la imagen](src/img/img_4.png)
+
+### Screenshoots of the second lab
+
+Aca podemos observar el funcionamiento cuando se ponen diferentes direcciones.
+
+Primero cuando se ingresa con "http://localhost:35000/App/hello?name=Santiago"
+
+![Descripción de la imagen](src/img/img_5.png)
+
+Ahora podemos observar como retorna el número pi con la dirección "http://localhost:35000/App/pi"
+
+![Descripción de la imagen](src/img/img_6.png)
+
+Ahora traemos un Static file siendo en este caso una imagen con "http://localhost:35000/image"
+
+![Descripción de la imagen](src/img/img_7.png)
+
+Con la dirección "http://localhost:35000/index.html" se trae el proyecto de música previamente mostrado
+
+![Descripción de la imagen](src/img/img_8.png)
+
+Y por último con la dirección "http://localhost:35000/api/songs" traemos a forma de JSON las listas de música de ejemplo en el proyecto.
+
+
+![Descripción de la imagen](src/img/img_9.png)
 
 ## Getting Started
 
@@ -44,7 +69,7 @@ A continuación se va a ver el paso a paso para la instalación del proyecto.
 1. Clonar el repositorio
 
 ```
-git clone https://github.com/Santiago-Cordoba/Lab01-AREP-Taller-Dise-o-y-estructuraci-n-aplicaciones-distribuidas-de-internet.git
+git clone https://github.com/Santiago-Cordoba/Lab02-MicroFrameworks-AREP.git
 ```
 
 2. Compilar el proyecto con maven (requisito previamente escrito)
@@ -55,17 +80,22 @@ mvn package
 
 3. Desde un IDE ejecutar la clase HttpServer
 
-4. Una vez se esté ejecutando de manera correcta la clase HttpServer, en el navegador colocaremos:
+4. Una vez se esté ejecutando de manera correcta la clase HttpServer, en el navegador podremos colocar las siguientes direcciones para pobrar el funcionamiento:
+
 
 ```
-http://localhost:35000
+http://localhost:35000/App/hello?name=Santiago
+http://localhost:35000/App/pi
+http://localhost:35000/image
+http://localhost:35000/index.html
+http://localhost:35000/api/songs 
 ```
 
 ## Running the tests
 
-Se corren los test los diferentes funciones que se programaron para probar el correcto funcionamiento del proyecto.
+Se corren los test de las diferentes funciones que se programaron para probar el correcto funcionamiento del proyecto.
 
-![Descripción de la imagen](src/img/img.png)
+![Descripción de la imagen](src/img/img_10.png)
 
 ### Break down into end to end tests
 
@@ -92,6 +122,29 @@ Para backend se utilizo:
 - Librerias para poder realizar las conexiones con los Sockets
 ```
 
+Directorio:
+
+```
+web-framework/
+├── src/
+│   └── main/
+│       └── java/
+│           ├── edu/escuelaing/arem/ASE/app/
+│           │   ├── HttpServer.java
+│           │   └── Song.java
+│           │   └── Request.java
+│           │   └── Response.java
+│           └── ExampleApp.java
+├── resources/
+│   └── webroot/
+│       ├── index.html
+│       ├── style.css
+│       └── script.js
+├── pom.xml
+└── README.md
+```
+
+
 ## Built With
 
 * [Java](https://www.java.com/es) - Lenguaje para el backend
@@ -105,5 +158,6 @@ Para backend se utilizo:
 
 * Conocimiento de como montar un server Http sin la necesidad de usar frameworks como Spring
 * Entendimiento del funcionamiento de los Sockets
+* Entendimiento del funcionamiento de los microframeworks
 
 

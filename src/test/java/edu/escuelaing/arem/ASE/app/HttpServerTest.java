@@ -6,9 +6,9 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
-
 
 public class HttpServerTest {
 
@@ -26,7 +26,7 @@ public class HttpServerTest {
         String request = "GET /api/songs HTTP/1.1\nHost: localhost\n\n";
         BufferedReader reader = new BufferedReader(new StringReader(request));
 
-        HttpServer.Request parsed = HttpServer.parseRequest(reader);
+        Request parsed = HttpServer.parseRequest(reader);
 
         assertAll(
                 () -> assertEquals("GET", parsed.getMethod()),
@@ -39,19 +39,36 @@ public class HttpServerTest {
         String request = "POST /api/songs/add?title=Test&artist=Test HTTP/1.1\nHost: localhost\n\n";
         BufferedReader reader = new BufferedReader(new StringReader(request));
 
-        HttpServer.Request parsed = HttpServer.parseRequest(reader);
+        Request parsed = HttpServer.parseRequest(reader);
 
         assertAll(
                 () -> assertEquals("POST", parsed.getMethod()),
-                () -> assertEquals("/api/songs/add?title=Test&artist=Test", parsed.getPath())
+                () -> assertEquals("/api/songs/add", parsed.getPath()),
+                () -> assertEquals("Test", parsed.getQueryParam("title")),
+                () -> assertEquals("Test", parsed.getQueryParam("artist"))
+        );
+    }
+
+    @Test
+    public void testParseRequestWithQueryParams() throws IOException {
+        String request = "GET /test?name=John&age=30 HTTP/1.1\nHost: localhost\n\n";
+        BufferedReader reader = new BufferedReader(new StringReader(request));
+
+        Request parsed = HttpServer.parseRequest(reader);
+
+        assertAll(
+                () -> assertEquals("GET", parsed.getMethod()),
+                () -> assertEquals("/test", parsed.getPath()),
+                () -> assertEquals("John", parsed.getQueryParam("name")),
+                () -> assertEquals("30", parsed.getQueryParam("age"))
         );
     }
 
     @Test
     public void testHandleApiRequestGetSongs() throws IOException {
-        HttpServer.Request request = new HttpServer.Request("GET", "/api/songs");
-        PrintWriter out = new PrintWriter(outputStream);
-
+        Map<String, String> queryParams = new HashMap<>();
+        Request request = new Request("GET", "/api/songs", queryParams);
+        
         HttpServer.handleApiRequest(outputStream, request);
         String response = outputStream.toString();
 
@@ -65,8 +82,10 @@ public class HttpServerTest {
 
     @Test
     public void testHandleApiRequestAddSong() throws IOException {
-        HttpServer.Request request = new HttpServer.Request("POST", "/api/songs/add?title=NewSong&artist=NewArtist");
-        PrintWriter out = new PrintWriter(outputStream);
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("title", "NewSong");
+        queryParams.put("artist", "NewArtist");
+        Request request = new Request("POST", "/api/songs/add", queryParams);
 
         HttpServer.handleApiRequest(outputStream, request);
         String response = outputStream.toString();
@@ -79,8 +98,8 @@ public class HttpServerTest {
 
     @Test
     public void testHandleApiRequestInvalidEndpoint() throws IOException {
-        HttpServer.Request request = new HttpServer.Request("GET", "/api/invalid");
-        PrintWriter out = new PrintWriter(outputStream);
+        Map<String, String> queryParams = new HashMap<>();
+        Request request = new Request("GET", "/api/invalid", queryParams);
 
         HttpServer.handleApiRequest(outputStream, request);
         String response = outputStream.toString();
@@ -107,7 +126,7 @@ public class HttpServerTest {
                 () -> assertTrue(response.contains(testContent))
         );
 
-        // Limpiar
+
         Files.deleteIfExists(testFile);
     }
 
@@ -122,6 +141,58 @@ public class HttpServerTest {
         );
     }
 
+    @Test
+    public void testRequestParseQueryParams() {
+        String queryString = "name=John&age=30&city=New+York";
+        Map<String, String> params = Request.parseQueryParams(queryString);
 
+        assertAll(
+                () -> assertEquals("John", params.get("name")),
+                () -> assertEquals("30", params.get("age")),
+                () -> assertEquals("New York", params.get("city")),
+                () -> assertEquals(3, params.size())
+        );
+    }
 
+    @Test
+    public void testRequestParseQueryParamsWithEncoding() {
+        String queryString = "message=Hello%20World&user=Juan%20Pérez";
+        Map<String, String> params = Request.parseQueryParams(queryString);
+
+        assertAll(
+                () -> assertEquals("Hello World", params.get("message")),
+                () -> assertEquals("Juan Pérez", params.get("user"))
+        );
+    }
+
+    @Test
+    public void testRequestGetQueryParam() {
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("name", "John");
+        queryParams.put("age", "30");
+        
+        Request request = new Request("GET", "/test", queryParams);
+
+        assertAll(
+                () -> assertEquals("John", request.getQueryParam("name")),
+                () -> assertEquals("30", request.getQueryParam("age")),
+                () -> assertNull(request.getQueryParam("nonexistent"))
+        );
+    }
+
+    @Test
+    public void testRequestGetHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("User-Agent", "TestBrowser");
+        headers.put("Accept", "application/json");
+        
+        Request request = new Request("GET", "/test", new HashMap<>(), headers);
+
+        assertAll(
+                () -> assertEquals("TestBrowser", request.getHeader("User-Agent")),
+                () -> assertEquals("application/json", request.getHeader("Accept")),
+                () -> assertNull(request.getHeader("Nonexistent")),
+                () -> assertEquals(2, request.getHeaders().size())
+        );
+    }
 }
